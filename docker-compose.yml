@@ -1,0 +1,66 @@
+# Authentification configuree par les variables d'environnement.
+# Sans .env : mode local de demonstration (trust sur db_net isole).
+# Avec .env : mot de passe PostgreSQL actif via scram-sha-256.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-gutenberg}
+      POSTGRES_USER: ${DB_USER:-gutenberg}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-}
+      POSTGRES_HOST_AUTH_METHOD: ${DB_AUTH_METHOD:-trust}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - db_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DB_NAME: ${DB_NAME:-gutenberg}
+      DB_USER: ${DB_USER:-gutenberg}
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      DB_HOST: db
+      DB_PORT: "5432"
+      CORPUS_DIR: /data/corpus
+      BOOK_TARGET: ${BOOK_TARGET:-1700}
+      AUTO_IMPORT: ${AUTO_IMPORT:-1}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - corpus:/data/corpus
+    networks:
+      - app_net
+      - db_net
+    expose:
+      - "8000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${APP_PORT:-8080}:80"
+    networks:
+      - app_net
+
+volumes:
+  pgdata:
+  corpus:
+
+networks:
+  app_net:
+  db_net:
+    internal: true

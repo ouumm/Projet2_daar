@@ -1,0 +1,18 @@
+stages: [test, build]
+
+test-backend:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - pip install -r backend/requirements.txt
+    - cd backend && python manage.py test
+
+build-images:
+  stage: build
+  image: docker:27
+  services: [docker:27-dind]
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - docker build -t daar-backend ./backend
+    - docker build -t daar-frontend ./frontend
